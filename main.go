@@ -36,7 +36,8 @@ var(
      procEnumPrintersW = dll.MustFindProc("EnumPrintersW") 
 )
 
-func goOpenPrinter(printerName string) (uintptr, error) {
+//Opens a printer which can then be used to send documents to. Must be closed by user once. 
+func GoOpenPrinter(printerName string) (uintptr, error) {
 
      // printerName, printerName16 := getDefaultPrinterName();     
      
@@ -47,7 +48,7 @@ func goOpenPrinter(printerName string) (uintptr, error) {
      return printerHandle, nil
 }
  
-func goPrint(printerHandle uintptr, path string) error {
+func GoPrint(printerHandle uintptr, path string) error {
      
      var err error
 
@@ -60,7 +61,7 @@ func goPrint(printerHandle uintptr, path string) error {
      return err
 }
 
-func goClosePrinter(printerHandle uintptr) {
+func GoClosePrinter(printerHandle uintptr) {
 
      closePrinter.Call(printerHandle)  
      
@@ -108,7 +109,7 @@ func openPrinterFunc(printerName string, printerName16 []uint16) (uintptr, error
 
 }
  
-func getDefaultPrinterName() (string, []uint16){
+func GetDefaultPrinterName() (string, []uint16){
 
      var pn[256] uint16
      plen := len(pn)
@@ -119,7 +120,7 @@ func getDefaultPrinterName() (string, []uint16){
      return printerName, printer16
 }
 
-func getPrinterNames() ([]string, error) {     
+func GetPrinterNames() ([]string, error) {     
      var needed, returned uint32
      buf := make([]byte, 1)
      err := enumPrinters(2, nil, 5, &buf[0], uint32(len(buf)), &needed, &returned)
@@ -134,7 +135,7 @@ func getPrinterNames() ([]string, error) {
           }
      }
      ps := (*[1024]PRINTER_INFO_5)(unsafe.Pointer(&buf[0]))[:returned]
-     defaultPrinter, _ := getDefaultPrinterName()
+     defaultPrinter, _ := GetDefaultPrinterName()
      names := make([]string, 0, returned)
      names = append(names, defaultPrinter)
      for _, p := range ps {
