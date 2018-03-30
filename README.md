@@ -1,5 +1,8 @@
 # goprint
 
+See <a href="http://www.github.com/alexbrainman/printer">printer</a> repo for a much more user friendly printer. After many hours of trying to get my printer working, I ended up using some of the code found there so I could print PDFs on windows.
+
+
 Example usage:
 
 ```go
