@@ -1,27 +1,14 @@
 package goprint
 
 import(
-
+     "encoding/binary"
+     "bytes"  
      "syscall"
      "unsafe"
      "io/ioutil"
      "fmt"
      "strings"
 )
- 
-type DOC_INFO_1 struct{
-     pDocName       *uint16
-     pOutputFile    *uint16
-     pDatatype      *uint16
-}
-
-type PRINTER_INFO_5 struct {
-     PrinterName              *uint16
-     PortName                 *uint16
-     Attributes               uint32
-     DeviceNotSelectedTimeout uint32
-     TransmissionRetryTimeout uint32
-}
 
 var(
      dll = syscall.MustLoadDLL("winspool.drv")
@@ -34,7 +21,474 @@ var(
      endDocPrinter = dll.MustFindProc("EndDocPrinter")
      closePrinter= dll.MustFindProc("ClosePrinter")    
      procEnumPrintersW = dll.MustFindProc("EnumPrintersW") 
+     documentProperties = dll.MustFindProc("DocumentPropertiesW")
+     getPrinter = dll.MustFindProc("GetPrinterW")
+     setPrinter = dll.MustFindProc("SetPrinterW")
 )
+ 
+type DOC_INFO_1 struct{
+     pDocName       *uint16
+     pOutputFile    *uint16
+     pDatatype      *uint16
+}
+
+type PRINTER_INFO_5 struct{
+     PrinterName              *uint16
+     PortName                 *uint16
+     Attributes               uint32
+     DeviceNotSelectedTimeout uint32
+     TransmissionRetryTimeout uint32
+}
+
+// PRINTER_INFO_2 attribute values
+const (
+     PRINTER_ATTRIBUTE_QUEUED            uint32 = 0x00000001
+     PRINTER_ATTRIBUTE_DIRECT            uint32 = 0x00000002
+     PRINTER_ATTRIBUTE_DEFAULT           uint32 = 0x00000004
+     PRINTER_ATTRIBUTE_SHARED            uint32 = 0x00000008
+     PRINTER_ATTRIBUTE_NETWORK           uint32 = 0x00000010
+     PRINTER_ATTRIBUTE_HIDDEN            uint32 = 0x00000020
+     PRINTER_ATTRIBUTE_LOCAL             uint32 = 0x00000040
+     PRINTER_ATTRIBUTE_ENABLE_DEVQ       uint32 = 0x00000080
+     PRINTER_ATTRIBUTE_KEEPPRINTEDJOBS   uint32 = 0x00000100
+     PRINTER_ATTRIBUTE_DO_COMPLETE_FIRST uint32 = 0x00000200
+     PRINTER_ATTRIBUTE_WORK_OFFLINE      uint32 = 0x00000400
+     PRINTER_ATTRIBUTE_ENABLE_BIDI       uint32 = 0x00000800
+     PRINTER_ATTRIBUTE_RAW_ONLY          uint32 = 0x00001000
+     PRINTER_ATTRIBUTE_PUBLISHED         uint32 = 0x00002000
+)
+
+// PRINTER_INFO_2 status values.
+const (
+     PRINTER_STATUS_PAUSED               uint32 = 0x00000001
+     PRINTER_STATUS_ERROR                uint32 = 0x00000002
+     PRINTER_STATUS_PENDING_DELETION     uint32 = 0x00000004
+     PRINTER_STATUS_PAPER_JAM            uint32 = 0x00000008
+     PRINTER_STATUS_PAPER_OUT            uint32 = 0x00000010
+     PRINTER_STATUS_MANUAL_FEED          uint32 = 0x00000020
+     PRINTER_STATUS_PAPER_PROBLEM        uint32 = 0x00000040
+     PRINTER_STATUS_OFFLINE              uint32 = 0x00000080
+     PRINTER_STATUS_IO_ACTIVE            uint32 = 0x00000100
+     PRINTER_STATUS_BUSY                 uint32 = 0x00000200
+     PRINTER_STATUS_PRINTING             uint32 = 0x00000400
+     PRINTER_STATUS_OUTPUT_BIN_FULL      uint32 = 0x00000800
+     PRINTER_STATUS_NOT_AVAILABLE        uint32 = 0x00001000
+     PRINTER_STATUS_WAITING              uint32 = 0x00002000
+     PRINTER_STATUS_PROCESSING           uint32 = 0x00004000
+     PRINTER_STATUS_INITIALIZING         uint32 = 0x00008000
+     PRINTER_STATUS_WARMING_UP           uint32 = 0x00010000
+     PRINTER_STATUS_TONER_LOW            uint32 = 0x00020000
+     PRINTER_STATUS_NO_TONER             uint32 = 0x00040000
+     PRINTER_STATUS_PAGE_PUNT            uint32 = 0x00080000
+     PRINTER_STATUS_USER_INTERVENTION    uint32 = 0x00100000
+     PRINTER_STATUS_OUT_OF_MEMORY        uint32 = 0x00200000
+     PRINTER_STATUS_DOOR_OPEN            uint32 = 0x00400000
+     PRINTER_STATUS_SERVER_UNKNOWN       uint32 = 0x00800000
+     PRINTER_STATUS_POWER_SAVE           uint32 = 0x01000000
+     PRINTER_STATUS_SERVER_OFFLINE       uint32 = 0x02000000
+     PRINTER_STATUS_DRIVER_UPDATE_NEEDED uint32 = 0x04000000
+)
+
+// PRINTER_INFO_2 struct.
+type PRINTER_INFO_2 struct {
+     pServerName         *uint16
+     pPrinterName        *uint16
+     pShareName          *uint16
+     pPortName           *uint16
+     pDriverName         *uint16
+     pComment            *uint16
+     pLocation           *uint16
+     pDevMode            *DevMode
+     pSepFile            *uint16
+     pPrintProcessor     *uint16
+     pDatatype           *uint16
+     pParameters         *uint16
+     pSecurityDescriptor uintptr
+     attributes          uint32
+     priority            uint32
+     defaultPriority     uint32
+     startTime           uint32
+     untilTime           uint32
+     status              uint32
+     cJobs               uint32
+     averagePPM          uint32
+}
+
+type PRINTER_INFO_9 struct {
+     dev *DevMode
+}
+
+type HANDLE uintptr
+
+func (hPrinter *HANDLE) Print(path string) error {
+     pathArray := strings.Split(path, "/")
+     l := len(pathArray)
+     name := pathArray[l-1]
+
+     d := DOC_INFO_1{
+          pDocName:      &(syscall.StringToUTF16(name))[0],
+          pOutputFile:   nil,
+          pDatatype:          &(syscall.StringToUTF16("RAW"))[0],
+     }
+
+     //Start the documnet - If function fails, return is 0
+     r1, _, err := startDocPrinter.Call(uintptr(*hPrinter), 1, uintptr(unsafe.Pointer(&d)))
+     if r1 == 0 {return err}
+
+     //Start the page for printing. - If function fails, return is 0
+     r1, _, err = startPagePrinter.Call(uintptr(*hPrinter))
+     if r1 == 0 {return err}
+
+     fc, err := ioutil.ReadFile(path)
+     if err != nil {return err}
+
+     var clen uintptr = uintptr(len(fc))
+     var writtenLen int
+
+     //Write to printer - If function fails, the return value is 0
+     r1, _, err = writePrinter.Call(uintptr(*hPrinter), uintptr(unsafe.Pointer(&fc[0])), clen, uintptr(unsafe.Pointer(&writtenLen)))
+     if r1 == 0 {return err}  
+
+     //End the page - if function fails, the return value is 0
+     r1, _, err = endPagePrinter.Call(uintptr(*hPrinter))
+     if r1 == 0 {return err}
+
+     //End the document - if function fails, the return value is 0
+     r1, _, err = endDocPrinter.Call(uintptr(*hPrinter))
+     if r1 == 0 {return err}
+
+     return nil
+
+}
+
+func OpenPrinter(printerName string) (HANDLE, error) {
+     var pPrinterName *uint16
+     pPrinterName, err := syscall.UTF16PtrFromString(printerName)
+     if err != nil {
+          return 0, err
+     }
+
+     var hPrinter HANDLE
+     r1, _, err := openPrinter.Call(uintptr(unsafe.Pointer(pPrinterName)), uintptr(unsafe.Pointer(&hPrinter)), 0)
+     if r1 == 0 {
+          return 0, err
+     }
+     return hPrinter, nil
+}
+
+func (hPrinter *HANDLE) ClosePrinter() error {
+     r1, _, err := closePrinter.Call(uintptr(*hPrinter))
+     if r1 == 0 {
+          return err
+     }
+     *hPrinter = 0
+     return nil
+}
+
+func (hPrinter HANDLE) GetPrinter2() (*PRINTER_INFO_2, error) {
+
+     var needed uint32  
+     var buf []byte = make([]byte, 1)
+     var blen uintptr = uintptr(len(buf))
+
+     var printerInfo *PRINTER_INFO_2
+
+     r1, _, err := getPrinter.Call(uintptr(hPrinter), 2, uintptr(unsafe.Pointer(&buf[0])), blen, uintptr(unsafe.Pointer(&needed)))
+     if r1 == 0 {          
+          var newBuf []byte = make([]byte, int(needed))
+          var newLen uintptr = uintptr(len(newBuf))
+          r1, _, err = getPrinter.Call(uintptr(hPrinter), 2, uintptr(unsafe.Pointer(&newBuf[0])), newLen, uintptr(unsafe.Pointer(&needed)))
+          if r1 == 0{
+               fmt.Println("Failed")
+               return nil,err
+          }
+
+          printerInfo = (*PRINTER_INFO_2)(unsafe.Pointer(&newBuf[0]))
+
+          fmt.Println("duplex from 2:", printerInfo.pDevMode.dmDuplex)
+
+     }
+     
+     return printerInfo , nil
+}
+
+func (hPrinter HANDLE) SetDuplexPrinter2(printerInfo *PRINTER_INFO_2) {
+
+     printerInfo.pDevMode.SetDuplex(2)
+
+     return
+}
+
+func (hPrinter HANDLE) SetPrinter(printerInfo *PRINTER_INFO_2) (error){
+
+     var bin_buf bytes.Buffer
+     binary.Write(&bin_buf, binary.BigEndian, printerInfo)
+     bs := bin_buf.Bytes()
+
+     r1, _, err := setPrinter.Call(uintptr(hPrinter), 2, uintptr(unsafe.Pointer(&bs[0])), 0)
+     if r1 != 0 {return err}
+
+     return nil
+}
+
+func (hPrinter HANDLE) GetPrinter9() (*DevMode, error) {
+
+     var needed uint32  
+     var buf []byte = make([]byte, 1)
+     var blen uintptr = uintptr(len(buf))
+
+     var printerInfo *PRINTER_INFO_9
+
+     r1, _, err := getPrinter.Call(uintptr(hPrinter), 9, uintptr(unsafe.Pointer(&buf[0])), blen, uintptr(unsafe.Pointer(&needed)))
+     if r1 == 0 {          
+          var newBuf []byte = make([]byte, int(needed))
+          var newLen uintptr = uintptr(len(newBuf))
+          r1, _, err = getPrinter.Call(uintptr(hPrinter), 9, uintptr(unsafe.Pointer(&newBuf[0])), newLen, uintptr(unsafe.Pointer(&needed)))
+          if r1 == 0{
+               fmt.Println("Failed")
+               return nil,err
+          }
+          
+          printerInfo = (*PRINTER_INFO_9)(unsafe.Pointer(&newBuf[0]))
+
+     }
+     
+     return printerInfo.dev, nil
+}
+
+func (hPrinter HANDLE) DocumentPropertiesGet(deviceName string) (*DevMode, error) {
+     pDeviceName, err := syscall.UTF16PtrFromString(deviceName)
+     if err != nil {
+          return nil, err
+     }
+
+     r1, _, err := documentProperties.Call(0, uintptr(hPrinter), uintptr(unsafe.Pointer(pDeviceName)), 0, 0, 0)
+     cbBuf := int32(r1)
+     if cbBuf < 0 {
+          return nil, err
+     }
+
+     var pDevMode []byte = make([]byte, cbBuf)
+     devMode := (*DevMode)(unsafe.Pointer(&pDevMode[0]))
+     devMode.dmSize = uint16(cbBuf)
+     devMode.dmSpecVersion = DM_SPECVERSION
+
+     r1, _, err = documentProperties.Call(0, uintptr(hPrinter), uintptr(unsafe.Pointer(pDeviceName)), uintptr(unsafe.Pointer(devMode)), uintptr(unsafe.Pointer(devMode)), uintptr(DM_COPY))
+     if int32(r1) < 0 {
+          return nil, err
+     }
+
+     fmt.Println("From get:", devMode.dmDuplex)
+
+     return devMode, nil
+}
+
+func (hPrinter HANDLE) DocumentPropertiesSet(deviceName string, devMode *DevMode) error {
+
+     pDeviceName, err := syscall.UTF16PtrFromString(deviceName)
+     if err != nil {
+          return err
+     }
+
+     r1, _, err := documentProperties.Call(0, uintptr(hPrinter), uintptr(unsafe.Pointer(pDeviceName)), uintptr(unsafe.Pointer(devMode)), uintptr(unsafe.Pointer(devMode)), uintptr(DM_COPY|DM_MODIFY))
+     if int32(r1) < 0 {
+          return err
+     }
+
+     return nil
+}
+
+const (
+     CCHDEVICENAME = 32
+     CCHFORMNAME   = 32
+
+     DM_SPECVERSION uint16 = 0x0401
+     DM_COPY        uint32 = 2
+     DM_MODIFY      uint32 = 8
+
+     DM_ORIENTATION        = 0x00000001
+     DM_PAPERSIZE          = 0x00000002
+     DM_PAPERLENGTH        = 0x00000004
+     DM_PAPERWIDTH         = 0x00000008
+     DM_SCALE              = 0x00000010
+     DM_POSITION           = 0x00000020
+     DM_NUP                = 0x00000040
+     DM_DISPLAYORIENTATION = 0x00000080
+     DM_COPIES             = 0x00000100
+     DM_DEFAULTSOURCE      = 0x00000200
+     DM_PRINTQUALITY       = 0x00000400
+     DM_COLOR              = 0x00000800
+     DM_DUPLEX             = 0x00001000
+     DM_YRESOLUTION        = 0x00002000
+     DM_TTOPTION           = 0x00004000
+     DM_COLLATE            = 0x00008000
+     DM_FORMNAME           = 0x00010000
+     DM_LOGPIXELS          = 0x00020000
+     DM_BITSPERPEL         = 0x00040000
+     DM_PELSWIDTH          = 0x00080000
+     DM_PELSHEIGHT         = 0x00100000
+     DM_DISPLAYFLAGS       = 0x00200000
+     DM_DISPLAYFREQUENCY   = 0x00400000
+     DM_ICMMETHOD          = 0x00800000
+     DM_ICMINTENT          = 0x01000000
+     DM_MEDIATYPE          = 0x02000000
+     DM_DITHERTYPE         = 0x04000000
+     DM_PANNINGWIDTH       = 0x08000000
+     DM_PANNINGHEIGHT      = 0x10000000
+     DM_DISPLAYFIXEDOUTPUT = 0x20000000
+
+     DMORIENT_PORTRAIT  int16 = 1
+     DMORIENT_LANDSCAPE int16 = 2
+
+     DMCOLOR_MONOCHROME int16 = 1
+     DMCOLOR_COLOR      int16 = 2
+
+     DMDUP_SIMPLEX    int16 = 1
+     DMDUP_VERTICAL   int16 = 2
+     DMDUP_HORIZONTAL int16 = 3
+
+     DMCOLLATE_FALSE int16 = 0
+     DMCOLLATE_TRUE  int16 = 1
+
+     DMNUP_SYSTEM uint32 = 1
+     DMNUP_ONEUP  uint32 = 2
+)
+
+// DEVMODE struct.
+type DevMode struct {
+     // WCHAR dmDeviceName[CCHDEVICENAME]
+     dmDeviceName, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _ uint16
+
+     dmSpecVersion   uint16
+     dmDriverVersion uint16
+     dmSize          uint16
+     dmDriverExtra   uint16
+     dmFields        uint32
+
+     dmOrientation   int16
+     dmPaperSize     int16
+     dmPaperLength   int16
+     dmPaperWidth    int16
+     dmScale         int16
+     dmCopies        int16
+     dmDefaultSource int16
+     dmPrintQuality  int16
+     dmColor         int16
+     dmDuplex        int16
+     dmYResolution   int16
+     dmTTOption      int16
+     dmCollate       int16
+     // WCHAR dmFormName[CCHFORMNAME]
+     dmFormName, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _ uint16
+
+     dmLogPixels        int16
+     dmBitsPerPel       uint16
+     dmPelsWidth        uint16
+     dmPelsHeight       uint16
+     dmNup              uint32
+     dmDisplayFrequency uint32
+     dmICMMethod        uint32
+     dmICMIntent        uint32
+     dmMediaType        uint32
+     dmDitherType       uint32
+     dmReserved1        uint32
+     dmReserved2        uint32
+     dmPanningWidth     uint32
+     dmPanningHeight    uint32
+}
+
+// func (dm *DevMode) GetDeviceName() string {
+//      return utf16PtrToStringSize(&dm.dmDeviceName, CCHDEVICENAME*2)
+// }
+
+func (dm *DevMode) GetOrientation() (int16, bool) {
+     return dm.dmOrientation, dm.dmFields&DM_ORIENTATION != 0
+}
+
+func (dm *DevMode) SetOrientation(orientation int16) {
+     dm.dmOrientation = orientation
+     dm.dmFields |= DM_ORIENTATION
+}
+
+func (dm *DevMode) GetPaperSize() (int16, bool) {
+     return dm.dmPaperSize, dm.dmFields&DM_PAPERSIZE != 0
+}
+
+func (dm *DevMode) SetPaperSize(paperSize int16) {
+     dm.dmPaperSize = paperSize
+     dm.dmFields |= DM_PAPERSIZE
+}
+
+func (dm *DevMode) ClearPaperSize() {
+     dm.dmFields &^= DM_PAPERSIZE
+}
+
+func (dm *DevMode) GetPaperLength() (int16, bool) {
+     return dm.dmPaperLength, dm.dmFields&DM_PAPERLENGTH != 0
+}
+
+func (dm *DevMode) SetPaperLength(length int16) {
+     dm.dmPaperLength = length
+     dm.dmFields |= DM_PAPERLENGTH
+}
+
+func (dm *DevMode) ClearPaperLength() {
+     dm.dmFields &^= DM_PAPERLENGTH
+}
+
+func (dm *DevMode) GetPaperWidth() (int16, bool) {
+     return dm.dmPaperWidth, dm.dmFields&DM_PAPERWIDTH != 0
+}
+
+func (dm *DevMode) SetPaperWidth(width int16) {
+     dm.dmPaperWidth = width
+     dm.dmFields |= DM_PAPERWIDTH
+}
+
+func (dm *DevMode) ClearPaperWidth() {
+     dm.dmFields &^= DM_PAPERWIDTH
+}
+
+func (dm *DevMode) GetCopies() (int16, bool) {
+     return dm.dmCopies, dm.dmFields&DM_COPIES != 0
+}
+
+func (dm *DevMode) SetCopies(copies int16) {
+     dm.dmCopies = copies
+     dm.dmFields |= DM_COPIES
+}
+
+func (dm *DevMode) GetColor() (int16, bool) {
+     return dm.dmColor, dm.dmFields&DM_COLOR != 0
+}
+
+func (dm *DevMode) SetColor(color int16) {
+     dm.dmColor = color
+     dm.dmFields |= DM_COLOR
+}
+
+func (dm *DevMode) GetDuplex() (int16, bool) {
+     return dm.dmDuplex, dm.dmFields&DM_DUPLEX != 0
+}
+
+func (dm *DevMode) SetDuplex(duplex int16) {
+     dm.dmDuplex = duplex
+     dm.dmFields |= DM_DUPLEX
+}
+
+func (dm *DevMode) GetCollate() (int16, bool) {
+     return dm.dmCollate, dm.dmFields&DM_COLLATE != 0
+}
+
+func (dm *DevMode) SetCollate(collate int16) {
+     dm.dmCollate = collate
+     dm.dmFields |= DM_COLLATE
+}
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//PREVIOUS VERSION CODE:
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //Opens a printer which can then be used to send documents to. Must be closed by user once. 
 func GoOpenPrinter(printerName string) (uintptr, error) {
