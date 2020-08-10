@@ -1,7 +1,7 @@
 # goprint
 
 See <a href="http://www.github.com/alexbrainman/printer">printer</a> repo for a much more user friendly printer. After many hours of trying to get my printer working, I ended up using some of the code found there so I could print PDFs on windows.
-
+UPDATE: I switched to a Linux server and use CUPS with the proper drivers. This allows you to fully control the printer(duplex, stapling, etc) from a CLI.
 
 Example usage:
 
