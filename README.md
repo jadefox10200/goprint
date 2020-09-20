@@ -1,6 +1,10 @@
 # goprint
 
 See <a href="http://www.github.com/alexbrainman/printer">printer</a> repo for a much more user friendly printer. After many hours of trying to get my printer working, I ended up using some of the code found there so I could print PDFs on windows.
+
+NOTE: This implementation heavily depends on the printer itself to draw complex document types such as PDFs as the code isn't doing any of the drawing. 
+Therefore, try sending a simple text file to your printer first. This should work in all cases that I have tested. Then if more complex document types don't work, this will be due to the printer not being able to read and convert that document type itself. If posting issues, please try this first and specify which printer you're using. 
+
 UPDATE: I switched to a Linux server and use CUPS with the proper drivers. This allows you to fully control the printer(duplex, stapling, etc) from a CLI.
 
 Example usage:
