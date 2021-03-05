@@ -128,15 +128,21 @@ type PRINTER_INFO_9 struct {
 
 type HANDLE uintptr
 
+func (pi *PRINTER_INFO_2) GetDataType() string{
+
+     return utf16PtrToString(pi.pDatatype)
+}
+
 func (hPrinter *HANDLE) Print(path string) error {
      pathArray := strings.Split(path, "/")
      l := len(pathArray)
      name := pathArray[l-1]
-
+     ptr2, err := hPrinter.GetPrinter2()
+     dataType := ptr2.GetDataType()
      d := DOC_INFO_1{
           pDocName:      &(syscall.StringToUTF16(name))[0],
           pOutputFile:   nil,
-          pDatatype:          &(syscall.StringToUTF16("RAW"))[0],
+          pDatatype:     &(syscall.StringToUTF16(dataType))[0],
      }
 
      //Start the documnet - If function fails, return is 0
