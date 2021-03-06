@@ -35,3 +35,6 @@ func main() {
 
 }
 ```
+
+UPDATE: 2021-03-05: New features added as well as new printing, duplex and setting default printer.  Existing functions were left alone and not modified so 
+the package is safe to download without losing existing features. 
