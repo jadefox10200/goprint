@@ -592,58 +592,58 @@ func (dm *DevMode) SetCollate(collate int16) {
 //HDC CODE:
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-type HDC uintptr
+// type HDC uintptr
 
-func CreateDC(deviceName string, devMode *DevMode) (HDC, error) {
-     lpszDevice, err := syscall.UTF16PtrFromString(deviceName)
-     if err != nil {
-          return 0, err
-     }
-     r1, _, err := createDCProc.Call(0, uintptr(unsafe.Pointer(lpszDevice)), 0, uintptr(unsafe.Pointer(devMode)))
-     if r1 == 0 {
-          return 0, err
-     }
-     return HDC(r1), nil
-}
+// func CreateDC(deviceName string, devMode *DevMode) (HDC, error) {
+//      lpszDevice, err := syscall.UTF16PtrFromString(deviceName)
+//      if err != nil {
+//           return 0, err
+//      }
+//      r1, _, err := createDCProc.Call(0, uintptr(unsafe.Pointer(lpszDevice)), 0, uintptr(unsafe.Pointer(devMode)))
+//      if r1 == 0 {
+//           return 0, err
+//      }
+//      return HDC(r1), nil
+// }
 
-func (hDC HDC) ResetDC(devMode *DevMode) error {
-     r1, _, err := resetDCProc.Call(uintptr(hDC), uintptr(unsafe.Pointer(devMode)))
-     if r1 == 0 {
-          return err
-     }
-     return nil
-}
+// func (hDC HDC) ResetDC(devMode *DevMode) error {
+//      r1, _, err := resetDCProc.Call(uintptr(hDC), uintptr(unsafe.Pointer(devMode)))
+//      if r1 == 0 {
+//           return err
+//      }
+//      return nil
+// }
 
-func (hDC *HDC) DeleteDC() error {
-     r1, _, err := deleteDCProc.Call(uintptr(*hDC))
-     if r1 == 0 {
-          return err
-     }
-     *hDC = 0
-     return nil
-}
+// func (hDC *HDC) DeleteDC() error {
+//      r1, _, err := deleteDCProc.Call(uintptr(*hDC))
+//      if r1 == 0 {
+//           return err
+//      }
+//      *hDC = 0
+//      return nil
+// }
 
-func (hDC HDC) GetDeviceCaps(nIndex int32) int32 {
-     // No error returned. r1 == 0 when nIndex == -1.
-     r1, _, _ := getDeviceCapsProc.Call(uintptr(hDC), uintptr(nIndex))
-     return int32(r1)
-}
+// func (hDC HDC) GetDeviceCaps(nIndex int32) int32 {
+//      // No error returned. r1 == 0 when nIndex == -1.
+//      r1, _, _ := getDeviceCapsProc.Call(uintptr(hDC), uintptr(nIndex))
+//      return int32(r1)
+// }
 
-func (hDC HDC) StartDoc(docName string) (int32, error) {
-     var docInfo DocInfo
-     var err error
-     docInfo.cbSize = int32(unsafe.Sizeof(docInfo))
-     docInfo.lpszDocName, err = syscall.UTF16PtrFromString(docName)
-     if err != nil {
-          return 0, err
-     }
+// func (hDC HDC) StartDoc(docName string) (int32, error) {
+//      var docInfo DocInfo
+//      var err error
+//      docInfo.cbSize = int32(unsafe.Sizeof(docInfo))
+//      docInfo.lpszDocName, err = syscall.UTF16PtrFromString(docName)
+//      if err != nil {
+//           return 0, err
+//      }
 
-     r1, _, err := startDocProc.Call(uintptr(hDC), uintptr(unsafe.Pointer(&docInfo)))
-     if r1 <= 0 {
-          return 0, err
-     }
-     return int32(r1), nil
-}
+//      r1, _, err := startDocProc.Call(uintptr(hDC), uintptr(unsafe.Pointer(&docInfo)))
+//      if r1 <= 0 {
+//           return 0, err
+//      }
+//      return int32(r1), nil
+// }
 
 
 
