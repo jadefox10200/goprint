@@ -689,7 +689,7 @@ func writePrinterFunc(printerHandle uintptr, path string) error {
      fmt.Println("About to write file to path: ", path)
      fileContents, err := ioutil.ReadFile(path)     
      if err != nil { return err }
-     var contentLen uintptr = uintptr(len(fileContents))
+     var contentLen = uintptr(uint32(len(fileContents)))
      var writtenLen int
      _, _, err = writePrinter.Call(printerHandle, uintptr(unsafe.Pointer(&fileContents[0])),  contentLen, uintptr(unsafe.Pointer(&writtenLen)))
      fmt.Println("Writing to printer:", err)
