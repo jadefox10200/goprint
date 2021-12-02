@@ -24,21 +24,12 @@ func main() {
 	//get the default pritner name:
 	printerName, _ := goprint.GetDefaultPrinterName()
 
-	// //open the printer:
+	//open the printer:
 	hdl, err := goprint.OpenPrinter(printerName)
 	if err != nil {
 		fmt.Printf("Failed to open printer: %s", err.Error())
 		return
 	}
-
-	ptr9, err := hdl.GetPrinter9()
-	if err != nil {
-		fmt.Printf("Failed to get printer: %s", err.Error())
-		return
-	}
-
-	//Prints the current devMode state to console:
-	ptr9.PrintDevMode()
 
 	//Changes user print settings to duplex:
 	err = hdl.SetDuplexPrinter9(2)
@@ -46,15 +37,6 @@ func main() {
 		fmt.Printf("Failed to set printer: %s", err.Error())
 		return
 	}
-
-	ptr9Mod, err := hdl.GetPrinter9()
-	if err != nil {
-		fmt.Printf("Failed to get printer: %s", err.Error())
-		return
-	}
-
-	//Print the state again to show that is it now set to duplex
-	ptr9Mod.PrintDevMode()
 
 	//Print using the handler:
 	err = hdl.Print("test.txt")
