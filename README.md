@@ -38,5 +38,3 @@ func main() {
 
 UPDATE: 2021-03-05: New features added as well as new printing, duplex and setting default printer.  Existing functions were left alone and not modified so 
 the package is safe to download without losing existing features. 
-
-NOTE: See issues as of 2021-11-28. Branch outFix needs testing in order to confirm this is now handled. Once confirmed, it will be merged into master. Anyone with a windows printer is encouraged to please test this package from the outFix branch. Thank you. 
