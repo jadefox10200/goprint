@@ -23,8 +23,8 @@ func IsvalidDevMode(dev *DevMode, buf uint16) (b bool) {
 
 func SetDefaultPrinter(printerName string) (b bool) {
 	var p0 *uint16
-	p0, _ = syscall.UTF16PtrFromString(printerName)
-	if _ != nil {
+	p0, err = syscall.UTF16PtrFromString(printerName)
+	if err != nil {
 		return
 	}
 	return _SetDefaultPrinter(p0)
