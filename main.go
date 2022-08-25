@@ -678,6 +678,18 @@ func GoPrint(printerHandle uintptr, path string) error {
      return err
 }
 
+func GoPrintFromOpenFile(printerHandle uintptr, docName string, fileContents []byte) error {
+     var err error
+
+     startPrinter(printerHandle, docName)
+     startPagePrinter.Call(printerHandle)
+     err = writePrinterFuncFromFileContents(printerHandle, docName, fileContents)
+     endPagePrinter.Call(printerHandle)
+     endDocPrinter.Call(printerHandle)
+
+     return err
+}
+
 func GoClosePrinter(printerHandle uintptr) {
 
      closePrinter.Call(printerHandle)  
@@ -696,7 +708,18 @@ func writePrinterFunc(printerHandle uintptr, path string) error {
 
      return nil
 }
- 
+
+
+func writePrinterFuncFromFileContents(printerHandle uintptr, docName string, fileContents []byte ) error {
+     fmt.Println("About to write file to path: ", docName)
+     var contentLen = uintptr(uint32(len(fileContents)))
+     var writtenLen int
+     _, _, err := writePrinter.Call(printerHandle, uintptr(unsafe.Pointer(&fileContents[0])),  contentLen, uintptr(unsafe.Pointer(&writtenLen)))
+     fmt.Println("Writing to printer:", err)
+
+     return nil
+}
+
 func startPrinter(printerHandle uintptr, path string) {     
           
      arr := strings.Split(path, "/")
